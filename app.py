@@ -1,20 +1,19 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+from math import sqrt
+from pandas import DataFrame, concat, Series
+from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense, LSTM
-from pandas import DataFrame, Series, concat
-from sklearn.metrics import mean_squared_error, mean_absolute_percentage_error
-import math
-import os
-import joblib
+from keras.models import Sequential
+from keras.layers import LSTM, Dense
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 
-# Helper functions
+# ---- Fungsi Pendukung ----
 
-# Frame a sequence as a supervised learning problem
-def timeseries_to_supervised(data, lag=7):
+# Mengubah urutan waktu menjadi data supervised
+def timeseries_to_supervised(data, lag=1):
     df = DataFrame(data)
     columns = [df.shift(i) for i in range(1, lag + 1)]
     columns.append(df)
@@ -22,7 +21,7 @@ def timeseries_to_supervised(data, lag=7):
     df.fillna(0, inplace=True)
     return df
 
-# Create a differenced series
+# Mendiferensiasi data untuk membuat stasioner
 def difference(dataset, interval=1):
     diff = list()
     for i in range(interval, len(dataset)):
@@ -30,11 +29,11 @@ def difference(dataset, interval=1):
         diff.append(value)
     return Series(diff)
 
-# Invert differenced value
+# Inversi diferensiasi
 def inverse_difference(history, yhat, interval=1):
     return yhat + history[-interval]
 
-# Scale train and test data to [-1, 1]
+# Scaling data ke rentang [-1, 1]
 def scale(train, test):
     scaler = MinMaxScaler(feature_range=(-1, 1))
     scaler = scaler.fit(train)
@@ -42,15 +41,14 @@ def scale(train, test):
     test_scaled = scaler.transform(test)
     return scaler, train_scaled, test_scaled
 
-# Inverse scaling for a forecasted value
+# Membalik scaling data
 def invert_scale(scaler, X, value):
     new_row = [x for x in X] + [value]
-    array = np.array(new_row)
-    array = array.reshape(1, len(array))
+    array = np.array(new_row).reshape(1, len(new_row))
     inverted = scaler.inverse_transform(array)
     return inverted[0, -1]
 
-# Fit an LSTM network to training data
+# Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
     X, y = train[:, 0:-1], train[:, -1]
     X = X.reshape(X.shape[0], 1, X.shape[1])
@@ -63,135 +61,86 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
         model.reset_states()
     return model
 
-# Make a one-step forecast
+# Memprediksi nilai
 def forecast_lstm(model, batch_size, X):
     X = X.reshape(1, 1, len(X))
     yhat = model.predict(X, batch_size=batch_size)
     return yhat[0, 0]
 
-# Convert list to one-dimensional array
-def toOneDimension(value):
-    return np.asarray(value)
+# Multi-step prediksi
+def forecast_lstm_multi_steps(model, batch_size, X, n_steps, raw_values, scaler):
+    predictions = []
+    input_data = X
+    for i in range(n_steps):
+        yhat = model.predict(input_data.reshape(1, 1, len(input_data)), batch_size=batch_size)[0, 0]
+        yhat_inverted = invert_scale(scaler, input_data, yhat)
+        yhat_inverted = inverse_difference(raw_values, yhat_inverted, len(raw_values) - len(input_data) + i)
+        predictions.append(yhat_inverted)
+        input_data = np.append(input_data[1:], yhat)
+    return predictions
 
-# Convert to multi-dimensional array
-def convertDimension(value):
-    return np.reshape(value, (value.shape[0], 1, value.shape[0]))
+# ---- Aplikasi Streamlit ----
+st.set_page_config(page_title="Aplikasi Peramalan PM10", layout="wide")
 
-# Root Mean Squared Error
-def calculate_rmse(actual, predicted):
-    return math.sqrt(mean_squared_error(actual, predicted))
+# Sidebar untuk navigasi
+st.sidebar.title("Navigasi")
+page = st.sidebar.radio("Pilih Halaman", ["Beranda", "Dataset", "Peramalan"])
 
-# Mean Absolute Percentage Error
-def calculate_mape(actual, predicted):
-    return mean_absolute_percentage_error(actual, predicted) * 100
+# Halaman Beranda
+if page == "Beranda":
+    st.title("Aplikasi Peramalan PM10 dengan LSTM")
+    st.write("""
+    Aplikasi ini digunakan untuk memprediksi konsentrasi PM10 menggunakan model Long Short-Term Memory (LSTM).
+    Anda dapat mengunggah dataset PM10, melihat data historis, dan melakukan prediksi konsentrasi untuk hari-hari mendatang.
+    Navigasikan melalui sidebar untuk memulai.
+    """)
+    st.image("https://via.placeholder.com/600x300.png?text=Ilustrasi+Prediksi", use_column_width=True)
 
-# Streamlit app starts here
-st.title("Aplikasi Peramalan PM10 dengan LSTM")
-
-# File uploader
-uploaded_file = st.sidebar.file_uploader("Unggah file CSV atau Excel Anda", type=["csv", "xlsx", "xls"])
-
-if uploaded_file is not None:
-    if 'model_trained' not in st.session_state:
-        st.session_state.model_trained = False
-    if 'data' not in st.session_state:
-        st.session_state.data = None
-    if 'model' not in st.session_state:
-        st.session_state.model = None
-    if 'scaler' not in st.session_state:
-        st.session_state.scaler = None
-
-    # Load data
-    file_extension = uploaded_file.name.split('.')[-1]
-    if file_extension == 'csv':
-        series = pd.read_csv(uploaded_file, usecols=[0, 1], engine='python', header=0)
-    elif file_extension in ['xlsx', 'xls']:
-        series = pd.read_excel(uploaded_file, usecols=[0, 1], header=0)
-
-    series['Tanggal'] = pd.to_datetime(series['Tanggal'], format='%d/%m/%Y')
-    series.set_index('Tanggal', inplace=True)
-
-    raw_values = series['PM10'].values.reshape(-1, 1)
-    diff_values = difference(raw_values, 1)
-    supervised = timeseries_to_supervised(diff_values, 1)
-    supervised_values = supervised.values
-
-    # Splitting the data into training and testing sets
-    split_index = int(0.8 * len(supervised_values))
-    train, test = supervised_values[:split_index], supervised_values[split_index:]
-    scaler, train_scaled, test_scaled = scale(train, test)
-
-    # Train the model
-    if not st.session_state.model_trained:
-        with st.spinner("Melatih model LSTM..."):
-            lstm_model = fit_lstm(train_scaled, batch_size=1, nb_epoch=100, neurons=5)
-            st.session_state.model = lstm_model
-            st.session_state.scaler = scaler
-            st.session_state.model_trained = True
-
-    # Sidebar navigation
-    st.sidebar.header("Navigasi")
-    selection = st.sidebar.radio("Pilih Tampilan", ["Dataset", "Peramalan"])
-
-    if selection == "Dataset":
-        st.subheader("Tabel")
-        st.write(series)
-
-        st.subheader("Visualisasi Data PM10")
-        plt.figure(figsize=(10, 6))
-        plt.plot(series.index, series['PM10'], label="Konsentrasi PM10", color="blue")
+# Halaman Dataset
+elif page == "Dataset":
+    st.title("Dataset PM10")
+    uploaded_file = st.sidebar.file_uploader("Unggah file dataset (.csv atau .xlsx)", type=["csv", "xlsx"])
+    if uploaded_file:
+        data = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+        st.dataframe(data.head())
+        data['Tanggal'] = pd.to_datetime(data['Tanggal'], errors='coerce')
+        plt.figure(figsize=(10, 5))
+        plt.plot(data['Tanggal'], data['PM10'], label="Konsentrasi PM10")
         plt.xlabel("Tanggal")
-        plt.ylabel("Konsentrasi PM10")
-        plt.title("Visualisasi Konsentrasi PM10 dari Dataset")
-        plt.xticks(rotation=45)
-        plt.grid(True)
+        plt.ylabel("PM10")
+        plt.title("Konsentrasi PM10")
+        plt.legend()
         st.pyplot(plt)
+    else:
+        st.write("Silakan unggah file dataset untuk melihat data.")
 
-    if selection == "Peramalan":
-        st.subheader("Peramalan PM10")
-
-        # Predict future PM10 values
-        future_days = st.number_input("Pilih jumlah hari untuk diprediksi:", min_value=1, max_value=300)
-
-        if future_days > 0:
-            st.subheader(f"Peramalan untuk {future_days} hari ke depan")
-
-            lastPredict = train_scaled[-1, 0].reshape(1, 1, 1)
-            future_predictions = []
-
-            for _ in range(future_days):
-                yhat = forecast_lstm(st.session_state.model, 1, lastPredict)
-                future_predictions.append(yhat)
-                lastPredict = convertDimension(np.array([[yhat]]))
-
-            # Invert scaling and differencing
-            future_predictions_inverted = []
-            for i in range(len(future_predictions)):
-                tmp_result = invert_scale(st.session_state.scaler, [0], future_predictions[i])
-                tmp_result = inverse_difference(raw_values, tmp_result, i + 1)
-                future_predictions_inverted.append(tmp_result)
-
-            future_predictions_inverted = np.array(future_predictions_inverted).flatten()
-
-            # Create a DataFrame for future predictions
-            last_date = series.index[-1]
-            future_index = pd.date_range(start=last_date + pd.DateOffset(days=1), periods=future_days, freq='D')
-
-            future_df = pd.DataFrame({
-                'Tanggal': future_index,
-                'Prediksi': np.round(future_predictions_inverted)
-            }).set_index('Tanggal')
-
-            st.subheader("Tabel Prediksi")
-            st.dataframe(future_df)
-
-            # Plot future predictions
-            plt.figure(figsize=(15, 7))
-            plt.plot(series.index, series['PM10'], label="Data Asli PM10")
-            plt.plot(future_df.index, future_df['Prediksi'], label="Prediksi PM10", linestyle="--", color="red")
-            plt.axvline(x=last_date, color='blue', linestyle='--', label="Batas Data Asli")
+# Halaman Peramalan
+elif page == "Peramalan":
+    st.title("Peramalan PM10")
+    if uploaded_file:
+        days = st.number_input("Jumlah hari untuk prediksi", min_value=1, max_value=300)
+        if st.button("Prediksi"):
+            # Transformasi data
+            data = data.sort_values('Tanggal')
+            raw_values = data['PM10'].values
+            diff_values = difference(raw_values, 1)
+            supervised = timeseries_to_supervised(diff_values, 1)
+            supervised_values = supervised.values
+            split_index = int(len(supervised_values) * 0.8)
+            train, test = supervised_values[:split_index], supervised_values[split_index:]
+            scaler, train_scaled, test_scaled = scale(train, test)
+            lstm_model = fit_lstm(train_scaled, 1, 20, 7)
+            X = test_scaled[-1, 0:-1]
+            predictions = forecast_lstm_multi_steps(lstm_model, 1, X, days, raw_values, scaler)
+            pred_dates = pd.date_range(data['Tanggal'].iloc[-1], periods=days + 1)[1:]
+            results = pd.DataFrame({"Tanggal": pred_dates, "Prediksi": np.exp(predictions)})
+            st.dataframe(results)
+            plt.figure(figsize=(10, 5))
+            plt.plot(pred_dates, np.exp(predictions), label="Prediksi PM10")
             plt.xlabel("Tanggal")
-            plt.ylabel("Konsentrasi PM10")
-            plt.title(f"Prediksi LSTM untuk {future_days} Hari ke Depan")
+            plt.ylabel("PM10")
+            plt.title("Prediksi Konsentrasi PM10")
             plt.legend()
             st.pyplot(plt)
+    else:
+        st.write("Silakan unggah file dataset di halaman Dataset terlebih dahulu.")
