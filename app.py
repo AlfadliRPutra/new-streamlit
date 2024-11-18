@@ -57,7 +57,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
     
     # Membuat model LSTM dengan batch_size yang tetap
     model = Sequential()
-    model.add(LSTM(neurons, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), stateful=True))  # batch_size tetap
+    model.add(LSTM(neurons, input_shape=(batch_size, X.shape[1], X.shape[2]), stateful=True))  # batch_size tetap
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
 
