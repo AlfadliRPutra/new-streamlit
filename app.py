@@ -50,19 +50,25 @@ def invert_scale(scaler, X, value):
 
 # Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
-    X, y = train[:, 0:-1], train[:, -1]
-    X = X.reshape(X.shape[0], 1, X.shape[1])  # Reshape input to [samples, timesteps, features]
+    # Membagi data menjadi X (fitur) dan y (target)
+    X, y = train[:, :-1], train[:, -1]  # Semua kolom kecuali terakhir untuk X, kolom terakhir untuk y
 
-    # Membuat model LSTM dengan batch_size tetap
+    # Reshape X menjadi 3D: [samples, timesteps, features]
+    X = X.reshape(X.shape[0], 1, X.shape[1])  # [samples, timesteps=1, features]
+
+    # Debug: Cetak bentuk data untuk memastikan
+    print(f"Shape of X: {X.shape}, Shape of y: {y.shape}")  # Harus (samples, 1, features), (samples,)
+
+    # Membuat model LSTM
     model = Sequential()
-    model.add(LSTM(neurons, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), stateful=True))
+    model.add(LSTM(neurons, input_shape=(X.shape[1], X.shape[2]), stateful=True, batch_size=batch_size))
     model.add(Dense(1))  # Output layer
     model.compile(loss='mean_squared_error', optimizer='adam')
 
-    # Melatih model LSTM
+    # Melatih model
     for i in range(nb_epoch):
         model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
-        model.reset_states()  # Reset states after each epoch to preserve the stateful behavior
+        model.reset_states()
 
     return model
 
