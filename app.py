@@ -82,6 +82,9 @@ def forecast_lstm_multi_steps(model, batch_size, X, n_steps, raw_values, scaler)
 # ---- Aplikasi Streamlit ----
 st.set_page_config(page_title="Aplikasi Peramalan PM10", layout="wide")
 
+# Global: File Upload
+uploaded_file = st.sidebar.file_uploader("Unggah file dataset (.csv atau .xlsx)", type=["csv", "xlsx"])
+
 # Sidebar untuk navigasi
 st.sidebar.title("Navigasi")
 page = st.sidebar.radio("Pilih Halaman", ["Beranda", "Dataset", "Peramalan"])
@@ -99,7 +102,6 @@ if page == "Beranda":
 # Halaman Dataset
 elif page == "Dataset":
     st.title("Dataset PM10")
-    uploaded_file = st.sidebar.file_uploader("Unggah file dataset (.csv atau .xlsx)", type=["csv", "xlsx"])
     if uploaded_file:
         data = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
         st.dataframe(data.head())
@@ -120,7 +122,7 @@ elif page == "Peramalan":
     if uploaded_file:
         days = st.number_input("Jumlah hari untuk prediksi", min_value=1, max_value=300)
         if st.button("Prediksi"):
-            # Transformasi data
+            data = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             data = data.sort_values('Tanggal')
             raw_values = data['PM10'].values
             diff_values = difference(raw_values, 1)
