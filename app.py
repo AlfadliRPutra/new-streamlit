@@ -73,6 +73,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
 
     # Melatih model
     for i in range(nb_epoch):
+        print(f"Epoch {i + 1}/{nb_epoch}")
         model.fit(
             X,
             y,
@@ -81,7 +82,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
             verbose=1,
             shuffle=False  # Tidak shuffle karena stateful=True
         )
-        model.reset_states()
+        model.reset_states()  # Reset state antar epoch
 
     return model
 
