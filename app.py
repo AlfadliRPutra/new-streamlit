@@ -50,22 +50,29 @@ def invert_scale(scaler, X, value):
 
 # Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
-    X, y = train[:, 0:-1], train[:, -1]
-    X = X.reshape(X.shape[0], 1, X.shape[1])  # Reshaping the input to (samples, timesteps, features)
+    # Ensure train is a numpy array
+    train = np.array(train)
+
+    # For univariate time series, train is a single feature (univariate), so we split like this:
+    X, y = train[:-1], train[1:]  # Predict the next value based on the current one (shifted by 1)
+    
+    # Reshaping to 3D array for LSTM input: (samples, timesteps, features)
+    X = X.reshape(len(X), 1, 1)  # Reshape to (samples, 1 timestep, 1 feature)
     
     # Define n_steps and n_features
-    n_steps = X.shape[1]  # This is 1 since each sample has 1 timestep
-    n_features = X.shape[2]  # Number of features in each timestep
-    
+    n_steps = X.shape[1]  # This will be 1
+    n_features = X.shape[2]  # This will be 1
+
     model = Sequential()
-    model.add(LSTM(neurons, return_sequences=True, input_shape=(n_steps, n_features)))  # input_shape based on X shape
-    model.add(Dense(1))
+    model.add(LSTM(neurons, return_sequences=False, input_shape=(n_steps, n_features)))  # input_shape=(1, 1)
+    model.add(Dense(1))  # Output a single value
     model.compile(loss='mean_squared_error', optimizer='adam')
 
     for i in range(nb_epoch):
         model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
         # No need to manually reset states; TensorFlow will manage it automatically
     return model
+
 
 
 # Memprediksi nilai
