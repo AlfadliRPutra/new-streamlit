@@ -58,7 +58,6 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
 	model.compile(loss='mean_squared_error', optimizer='adam')
 	for i in range(nb_epoch):
 		model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
-		model.reset_states()
 	return model
 
 
