@@ -51,18 +51,24 @@ def invert_scale(scaler, X, value):
 # Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
     # Membagi data menjadi X (fitur) dan y (target)
-    X, y = train[:, :-1], train[:, -1]  # Semua kolom kecuali terakhir untuk X, kolom terakhir untuk y
+    X, y = train[:, :-1], train[:, -1]
+
+    # Pastikan jumlah sampel adalah kelipatan dari batch_size
+    remainder = X.shape[0] % batch_size
+    if remainder != 0:
+        X = X[:X.shape[0] - remainder]
+        y = y[:y.shape[0] - remainder]
 
     # Reshape X menjadi 3D: [samples, timesteps, features]
     X = X.reshape(X.shape[0], 1, X.shape[1])  # [samples, timesteps=1, features]
 
-    # Debug: Cetak bentuk data untuk memastikan
-    print(f"Shape of X: {X.shape}, Shape of y: {y.shape}")  # Harus (samples, 1, features), (samples,)
+    # Debug: Cetak bentuk data
+    print(f"X shape after reshape: {X.shape}, y shape: {y.shape}")
 
     # Membuat model LSTM
     model = Sequential()
-    model.add(LSTM(neurons, input_shape=(X.shape[1], X.shape[2]), stateful=True, return_sequences=False))
-    model.add(Dense(1))  # Output layer
+    model.add(LSTM(neurons, input_shape=(X.shape[1], X.shape[2]), stateful=True, batch_size=batch_size))
+    model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
 
     # Melatih model
