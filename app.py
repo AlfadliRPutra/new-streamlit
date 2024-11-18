@@ -50,15 +50,18 @@ def invert_scale(scaler, X, value):
 
 # Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
-	X, y = train[:, 0:-1], train[:, -1]
-	X = X.reshape(X.shape[0], 1, X.shape[1])
-	model = Sequential()
-	model.add(LSTM(neurons,stateful=True))
-	model.add(Dense(1))
-	model.compile(loss='mean_squared_error', optimizer='adam')
-	for i in range(nb_epoch):
-		model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
-	return model
+    X, y = train[:, 0:-1], train[:, -1]
+    X = X.reshape(X.shape[0], 1, X.shape[1])  # Reshaping the input to (samples, timesteps, features)
+    
+    model = Sequential()
+    model.add(LSTM(neurons, stateful=True, input_shape=(X.shape[1], X.shape[2])))  # input_shape instead of batch_input_shape
+    model.add(Dense(1))
+    model.compile(loss='mean_squared_error', optimizer='adam')
+
+    for i in range(nb_epoch):
+        model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
+        # No need to manually reset states; TensorFlow will manage it automatically
+    return model
 
 
 # Memprediksi nilai
