@@ -97,7 +97,7 @@ if page == "Beranda":
     Anda dapat mengunggah dataset PM10, melihat data historis, dan melakukan prediksi konsentrasi untuk hari-hari mendatang.
     Navigasikan melalui sidebar untuk memulai.
     """)
-    st.image("https://via.placeholder.com/600x300.png?text=Ilustrasi+Prediksi", use_column_width=True)
+    st.image("https://via.placeholder.com/600x300.png?text=Ilustrasi+Prediksi", use_container_width=True)
 
 # Halaman Dataset
 elif page == "Dataset":
