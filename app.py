@@ -49,7 +49,6 @@ def invert_scale(scaler, X, value):
     return inverted[0, -1]
 
 # Melatih model LSTM
-
 def fit_lstm(train, batch_size, nb_epoch, neurons):
     """
     Melatih model LSTM dengan data pelatihan `train`.
@@ -82,7 +81,6 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
         neurons,
         input_shape=(X.shape[1], X.shape[2]),  # (timesteps, features)
         stateful=True,  # Aktifkan stateful
-        batch_size=batch_size,  # Batch size tetap untuk stateful
         return_sequences=False  # Output hanya untuk satu langkah ke depan
     ))
     model.add(Dense(1))  # Layer output
@@ -102,6 +100,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
         model.reset_states()  # Reset state antar epoch
 
     return model
+
 
 # Memprediksi nilai
 def forecast_lstm(model, batch_size, X):
