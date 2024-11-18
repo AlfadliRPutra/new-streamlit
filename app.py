@@ -61,17 +61,23 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
 
     # Membuat model LSTM
     model = Sequential()
-    model.add(LSTM(neurons, input_shape=(X.shape[1], X.shape[2]), stateful=True, batch_size=batch_size))
+    model.add(LSTM(neurons, input_shape=(X.shape[1], X.shape[2]), stateful=True, return_sequences=False))
     model.add(Dense(1))  # Output layer
     model.compile(loss='mean_squared_error', optimizer='adam')
 
     # Melatih model
     for i in range(nb_epoch):
-        model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
+        model.fit(
+            X,
+            y,
+            epochs=1,
+            batch_size=batch_size,
+            verbose=1,
+            shuffle=False  # Tidak shuffle karena stateful=True
+        )
         model.reset_states()
 
     return model
-
 
 # Memprediksi nilai
 def forecast_lstm(model, batch_size, X):
