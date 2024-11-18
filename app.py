@@ -49,7 +49,18 @@ def invert_scale(scaler, X, value):
     return inverted[0, -1]
 
 # Melatih model LSTM
+
 def fit_lstm(train, batch_size, nb_epoch, neurons):
+    """
+    Melatih model LSTM dengan data pelatihan `train`.
+    Args:
+        train (numpy.ndarray): Data pelatihan dalam bentuk supervised (X, y).
+        batch_size (int): Ukuran batch tetap (dibutuhkan untuk stateful LSTM).
+        nb_epoch (int): Jumlah epoch untuk pelatihan.
+        neurons (int): Jumlah neuron di layer LSTM.
+    Returns:
+        model: Model LSTM yang telah dilatih.
+    """
     # Membagi data menjadi X (fitur) dan y (target)
     X, y = train[:, :-1], train[:, -1]
 
@@ -68,12 +79,13 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
     # Membuat model LSTM
     model = Sequential()
     model.add(LSTM(
-        neurons, 
-        input_shape=(X.shape[1], X.shape[2]), 
-        stateful=True, 
-        return_sequences=False
+        neurons,
+        input_shape=(X.shape[1], X.shape[2]),  # (timesteps, features)
+        stateful=True,  # Aktifkan stateful
+        batch_size=batch_size,  # Batch size tetap untuk stateful
+        return_sequences=False  # Output hanya untuk satu langkah ke depan
     ))
-    model.add(Dense(1))
+    model.add(Dense(1))  # Layer output
     model.compile(loss='mean_squared_error', optimizer='adam')
 
     # Melatih model
@@ -83,7 +95,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
             X,
             y,
             epochs=1,
-            batch_size=batch_size,  # Batch size ditentukan di sini
+            batch_size=batch_size,  # Batch size tetap
             verbose=1,
             shuffle=False  # Tidak shuffle karena stateful=True
         )
