@@ -54,7 +54,7 @@ def fit_lstm(train, batch_size, nb_epoch, neurons):
     X = X.reshape(X.shape[0], 1, X.shape[1])  # Reshaping the input to (samples, timesteps, features)
     
     model = Sequential()
-    model.add(LSTM(neurons, stateful=True, input_shape=(X.shape[1], X.shape[2])))  # input_shape instead of batch_input_shape
+    model.add(LSTM(neurons, stateful=True, )  # input_shape instead of batch_input_shape
     model.add(Dense(1))
     model.compile(loss='mean_squared_error', optimizer='adam')
 
