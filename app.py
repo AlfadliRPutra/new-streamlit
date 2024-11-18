@@ -50,56 +50,16 @@ def invert_scale(scaler, X, value):
 
 # Melatih model LSTM
 def fit_lstm(train, batch_size, nb_epoch, neurons):
-    """
-    Melatih model LSTM dengan data pelatihan `train`.
-    Args:
-        train (numpy.ndarray): Data pelatihan dalam bentuk supervised (X, y).
-        batch_size (int): Ukuran batch tetap (dibutuhkan untuk stateful LSTM).
-        nb_epoch (int): Jumlah epoch untuk pelatihan.
-        neurons (int): Jumlah neuron di layer LSTM.
-    Returns:
-        model: Model LSTM yang telah dilatih.
-    """
-    # Membagi data menjadi X (fitur) dan y (target)
-    X, y = train[:, :-1], train[:, -1]
-
-    # Pastikan jumlah sampel adalah kelipatan dari batch_size
-    remainder = X.shape[0] % batch_size
-    if remainder != 0:
-        X = X[:X.shape[0] - remainder]
-        y = y[:y.shape[0] - remainder]
-
-    # Reshape X menjadi 3D: [samples, timesteps, features]
-    X = X.reshape(X.shape[0], 1, X.shape[1])  # [samples, timesteps=1, features]
-
-    # Debug: Cetak bentuk data
-    print(f"X shape after reshape: {X.shape}, y shape: {y.shape}")
-
-    # Membuat model LSTM
-    model = Sequential()
-    model.add(LSTM(
-        neurons,
-        input_shape=(X.shape[1], X.shape[2]),  # (timesteps, features)
-        stateful=True,  # Aktifkan stateful
-        return_sequences=False  # Output hanya untuk satu langkah ke depan
-    ))
-    model.add(Dense(1))  # Layer output
-    model.compile(loss='mean_squared_error', optimizer='adam')
-
-    # Melatih model
-    for i in range(nb_epoch):
-        print(f"Epoch {i + 1}/{nb_epoch}")
-        model.fit(
-            X,
-            y,
-            epochs=1,
-            batch_size=batch_size,  # Batch size tetap
-            verbose=1,
-            shuffle=False  # Tidak shuffle karena stateful=True
-        )
-        model.reset_states()  # Reset state antar epoch
-
-    return model
+	X, y = train[:, 0:-1], train[:, -1]
+	X = X.reshape(X.shape[0], 1, X.shape[1])
+	model = Sequential()
+	model.add(LSTM(neurons, batch_input_shape=(batch_size, X.shape[1], X.shape[2]), stateful=True))
+	model.add(Dense(1))
+	model.compile(loss='mean_squared_error', optimizer='adam')
+	for i in range(nb_epoch):
+		model.fit(X, y, epochs=1, batch_size=batch_size, verbose=1, shuffle=False)
+		model.reset_states()
+	return model
 
 
 # Memprediksi nilai
